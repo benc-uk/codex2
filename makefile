@@ -1,5 +1,5 @@
 build-lua:
-	GOOS=js GOARCH=wasm go build -o web/public/lua.wasm github.com/benc-uk/codex2/golua
+	GOOS=js GOARCH=wasm go build -o web/public/lua.wasm golua/main.go
 
 run:
 	cd web && npm run dev
