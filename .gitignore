@@ -1,0 +1,4 @@
+node_modules/
+web/public/lua.wasm
+local/
+.env

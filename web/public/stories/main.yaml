@@ -1,0 +1,125 @@
+title: Combat Test
+author: Test Author
+version: 1.0
+
+vars:
+  skill: 6
+  luck: 10
+  stamina: 20
+  gold: 0
+  equip: ['torch', 'rope']
+
+init: |
+  fight_msg = ""
+  function fight(name, enemy_skill, enemy_stamina)
+    local player_attack = d(6) + d(6) + skill
+    local enemy_attack = d(6) + d(6) + enemy_skill
+    fight_msg = "Your attack roll: "..player_attack.."\nThe "..name.." rolls: "..enemy_attack.."\n\n"
+
+    if player_attack > enemy_attack then
+      enemy_stamina = math.max(0, enemy_stamina - 2)
+      fight_msg = fight_msg.."You hit the "..name.." for 2 damage!"
+    elseif enemy_attack > player_attack then
+      stamina = stamina - 2
+      fight_msg = fight_msg.."The "..name.." hits you for 2 damage!"
+    else
+      fight_msg = fight_msg.."It's a tie! No damage dealt."
+    end
+
+    if enemy_stamina <= 0 then
+      fight_msg = "\nThe "..name.." is defeated!"
+    end
+
+    return enemy_stamina
+  end
+
+  function test_luck()
+    local luck_roll = d(6) + d(6)
+    local was_lucky = luck_roll <= luck
+    luck_msg = "Your luck is "..luck.."\nYou rolled a "..luck_roll.."\n"
+    luck = math.max(0, luck - 1)
+    return was_lucky
+  end
+
+templates:
+  - &combat
+    fight:
+      text: 'Attack the {s.name}'
+      if: s.stamina > 0
+      run: |
+        s.luck_used = false
+        s.stamina = fight(s.name, s.skill, s.stamina)
+      goto: self
+
+    push1:
+      text: 'Try to drive the attack: 🎲 LUCK'
+      if: s.stamina > 0 and luck > 0 and string.find(fight_msg, "You hit") ~= nil and not s.luck_used
+      run: |
+        luck_msg = ""
+        if test_luck() then
+          s.stamina = math.max(0, s.stamina - 2)
+          luck_msg = luck_msg .. " You deal an extra 2 points of damage."
+        else
+          s.stamina = s.stamina + 1
+          luck_msg = luck_msg .. " You were unlucky! The enemy takes 1 less damage."
+        end
+        if s.stamina <= 0 then
+          fight_msg = "\nThe "..s.name.." is defeated!"
+        end
+        s.luck_used = true;
+      notify: '{luck_msg}'
+      goto: self
+
+    push2:
+      text: 'Attempt to lessen the blow: 🎲 LUCK'
+      if: luck > 0 and string.find(fight_msg, "hits you") ~= nil and not s.luck_used
+      run: |
+        luck_msg = ""
+        if test_luck() then
+          stamina = stamina + 1
+          luck_msg = luck_msg .. " You were lucky! You avoid 1 points of damage."
+        else
+          stamina = math.max(0, stamina - 1)
+          luck_msg = luck_msg .. " You were unlucky! You take an extra 1 point of damage."
+        end
+        s.luck_used = true;
+      notify: '{luck_msg}'
+      goto: self
+
+sections:
+  start:
+    title: "The Goblin's Den"
+    text: 'You are in a dusty cave. A goblin blocks your path.'
+    options:
+      enter:
+        text: 'Engage the goblin'
+        goto: gob_fight
+      west: ['Go west', road]
+
+  road:
+    text: 'You are on a road leading away from the cave. You see {gold} gold coins on the ground.'
+    vars: { gold: 55 }
+    options:
+      east: ['Return to the cave', start]
+      idle:
+        text: 'Sit and rest for a while'
+        run: |
+          goto_section = 'goblin_victory'
+        notify: 'You feel refreshed and regain 2 stamina.'
+
+  gob_fight:
+    title: 'Fight: Ugly Goblin'
+    text: "GOBLIN ⎯⎯⎯ Skill: {s.skill} Stamina: {s.stamina}\n\n{fight_msg}"
+    vars: { stamina: 7, skill: 6, name: 'goblin', luck_used: false }
+    options:
+      <<: *combat
+      victory:
+        text: 'Collect your reward'
+        if: s.stamina <= 0
+        goto: goblin_victory
+
+  goblin_victory:
+    text: 'You have defeated the goblin and found a treasure chest!'
+
+  cave_of_shame:
+    text: 'You fled the battle and retreated to the Cave of Shame. You feel embarrassed.'

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/pngl" href="book.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex Loading...</title>
+    <script type="module" src="src/main.ts"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Almendra:ital,wght@0,400;0,700;1,400;1,700&family=Bona+Nova+SC:ital,wght@0,400;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body x-data="appState">
+    <section>
+      <header x-text="section.title"></header>
+      <hr />
+      <main x-html="section.text">Please wait while the story loads...</main>
+      <hr />
+      <nav>
+        <template x-for="[id, option] in Array.from(section.options)" :key="id">
+          <div class="option" x-text="option.text" @click="takeOption(option)"></div>
+        </template>
+      </nav>
+    </section>
+
+    <footer :class="{ 'sheet-collapsed': !sheetVisible }" @click="sheetVisible = !sheetVisible">
+      <div class="row" x-show="!sheetVisible" x-transition.duration.200ms.scale.50.origin.top>
+        <strong>Character Sheet</strong>
+        <!-- <strong>Map</strong>
+        <strong>Save</strong>
+        <strong>Load</strong> -->
+      </div>
+
+      <table>
+        <tr>
+          <td>Name:</td>
+          <td x-text="globals.player_name"></td>
+        </tr>
+        <tr>
+          <td>Stamina:</td>
+          <td x-text="globals.stamina"></td>
+        </tr>
+        <tr>
+          <td>Skill:</td>
+          <td x-text="globals.skill"></td>
+        </tr>
+        <tr>
+          <td>Luck:</td>
+          <td x-text="globals.luck"></td>
+        </tr>
+        <tr>
+          <td>Gold:</td>
+          <td x-text="globals.gold"></td>
+        </tr>
+        <tr>
+          <td>Equip:</td>
+          <td>
+            <template x-for="(item, index) in globals.equip" :key="index">
+              <span>
+                <span x-text="niceify(item)" class="equipment"></span>
+                <span x-text="index < globals.equip.length - 1 ? ', ' : ''"></span>
+              </span>
+            </template>
+          </td>
+        </tr>
+        <tr>
+          <td>Potions:</td>
+          <td>
+            <template x-for="(item, index) in globals.consumables" :key="index">
+              <span>
+                <a x-text="niceify(item)" class="consumable" @click.stop="useItem(item)"></a>
+                <span x-text="index < globals.consumables.length - 1 ? ', ' : ''"></span>
+              </span>
+            </template>
+          </td>
+        </tr>
+      </table>
+    </footer>
+
+    <dialog x-ref="notifyDialog" closedby="any">
+      <p x-html="notifyMsg"></p>
+      <div>
+        <button autofocus @click="$refs.notifyDialog.close()">OK</button>
+      </div>
+    </dialog>
+
+    <dialog x-ref="confirmDialog">
+      <p x-html="confirmMsg"></p>
+      <div>
+        <button @click="confirmResult(true)">Yes</button>
+        <button autofocus @click="confirmResult(false)">No</button>
+      </div>
+    </dialog>
+  </body>
+</html>

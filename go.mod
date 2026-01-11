@@ -1,0 +1,5 @@
+module github.com/benc-uk/codex2
+
+go 1.25.0
+
+require github.com/yuin/gopher-lua v1.1.1

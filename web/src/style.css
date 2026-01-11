@@ -1,0 +1,239 @@
+:root {
+  --main-bg-color: #63564c;
+  --main-text-color: #131211;
+  --paper-color: #eed3bd;
+  --choice-color: #c49b63;
+  --choice-color-hover: #a88452;
+  --green: #148318;
+}
+
+body {
+  background-color: var(--main-bg-color);
+  color: var(--main-text-color);
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+header {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin: 0;
+  padding: 0;
+}
+
+section {
+  font-family: 'Almendra', serif;
+  font-size: 1.5rem;
+  background-color: var(--paper-color);
+  color: var(--main-text-color);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3)), url(paper.jpg);
+  margin-bottom: 5rem;
+}
+
+main {
+  margin-bottom: 0px;
+}
+
+section hr {
+  border: none;
+  border-top: 2px solid var(--main-bg-color);
+  margin: 10px 0;
+}
+
+nav div {
+  font-family: 'Bona Nova SC', serif;
+  font-weight: 600;
+  margin-bottom: 10px;
+  background-color: var(--choice-color);
+  padding: 10px;
+  user-select: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+nav div:hover {
+  background-color: var(--choice-color-hover);
+  cursor: pointer;
+  transform: translate(5px, 0);
+  transition: transform 0.2s;
+}
+
+dialog {
+  font-family: 'Almendra', serif;
+  font-size: 1.6rem;
+  border: 2px solid var(--main-text-color);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  width: 30dvw;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)), url(paper.jpg);
+
+  /* enter animation */
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+dialog p {
+  margin: 0;
+}
+
+dialog div {
+  text-align: center;
+  margin-top: 20px;
+}
+
+dialog button {
+  font-family: 'Bona Nova SC', serif;
+  font-weight: 600;
+  font-size: 1.5rem;
+  background-color: var(--choice-color);
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+dialog button:hover {
+  background-color: var(--choice-color-hover);
+}
+
+::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+footer {
+  font-family: 'Bona Nova SC', serif;
+  padding: 10px;
+  padding-top: 5px;
+  background-color: var(--paper-color);
+  font-size: 1.2rem;
+  border-radius: 4px;
+  color: var(--main-text-color);
+  box-shadow: 8px -8px 12px rgba(0, 0, 0, 0.6);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3)), url(paper.jpg);
+  position: fixed;
+  bottom: 0;
+  width: 60dvw;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  user-select: none;
+}
+
+/* Footer slide transition - slides down when collapsed, showing only the row */
+footer {
+  transition: transform 0.3s ease-out;
+}
+
+footer.sheet-collapsed {
+  transform: translateY(calc(100% - 2.5rem));
+}
+
+footer::before {
+  content: '';
+  position: absolute;
+  top: -12px;
+  left: 0;
+  right: 0;
+  height: 13px;
+
+  background-image: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.3)), url(paper.jpg);
+  background-color: var(--paper-color);
+  clip-path: polygon(
+    0% 100%,
+    10% 10%,
+    20% 0%,
+    35% 100%,
+    40% 80%,
+    60% 0%,
+    70% 100%,
+    72% 20%,
+    80% 90%,
+    85% 30%,
+    100% 100%
+  );
+}
+
+footer .row {
+  cursor: pointer;
+  height: 2.5rem;
+  user-select: none;
+}
+
+footer table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+footer table td:first-child {
+  font-weight: bold;
+  width: 1rem;
+  padding-right: 1rem;
+}
+
+.consumable {
+  color: var(--green);
+}
+
+.consumable:hover {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+}
+
+.row strong {
+  flex-grow: 1;
+}
+
+/* mobile styles */
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+  section {
+    font-size: 5.4dvw;
+    padding: 15px;
+  }
+  header {
+    font-size: 6.1dvw;
+  }
+  nav div {
+    width: 95%;
+    font-size: 5.1dvw;
+    padding: 8px;
+  }
+  dialog {
+    width: 80dvw;
+    font-size: 5dvw;
+    padding: 15px;
+  }
+  footer {
+    width: 100%;
+    font-size: 4.9dvw;
+    padding: 8px;
+    left: 0;
+    right: auto;
+    bottom: 0;
+  }
+}
