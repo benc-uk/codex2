@@ -18,6 +18,10 @@ import (
 // Shared global Lua state
 var luaState *lua.LState
 
+// ==========================================================================
+// WASM needs a main function to run - this sets up the Lua state
+// and exposes the bridge functions to JavaScript
+// ==========================================================================
 func main() {
 	fmt.Println("Initializing Lua state and WASM/JS bridge...")
 	luaState = lua.NewState()
@@ -26,16 +30,24 @@ func main() {
 	// Load Lua standard libraries
 	luaState.OpenLibs()
 
+	// OK so why this way?!?
+	// The sensible way to do this would be to use go:wasmexport to export the functions directly.
+	// But, as of Go 1.20, it is SUPER limited what types you can accept and return (no strings!).
+	// This global bridge approach is kidna backwards, but it allows use a range of types via js.Value
 	var luaBridge = js.Global().Get("lua")
 	luaBridge.Set("DoString", js.FuncOf(doString))
 	luaBridge.Set("GetAllGlobals", js.FuncOf(getAllGlobals))
 	luaBridge.Set("GetGlobal", js.FuncOf(getGlobal))
+	luaBridge.Set("SetGlobal", js.FuncOf(setGlobal))
 	luaBridge.Set("CallFunction", js.FuncOf(callFunction))
 
 	// Prevent the function from returning, which would terminate the WebAssembly module.
 	select {}
 }
 
+// ==========================================================================
+// Execute a string of Lua code and return the result as a JavaScript value
+// ==========================================================================
 func doString(this js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		return "Error: missing argument"
@@ -58,6 +70,9 @@ func doString(this js.Value, args []js.Value) interface{} {
 	return js.Null()
 }
 
+// ==========================================================================
+// Retrieve all global variables from the Lua state as a JavaScript object
+// ==========================================================================
 func getAllGlobals(this js.Value, args []js.Value) interface{} {
 	jsObj := js.Global().Get("Object").New()
 
@@ -68,15 +83,39 @@ func getAllGlobals(this js.Value, args []js.Value) interface{} {
 	return jsObj
 }
 
+// ==========================================================================
+// Retrieve a specific global variable from the Lua state by name
+// ==========================================================================
 func getGlobal(this js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		return "Error: missing argument"
 	}
+
 	key := args[0].String()
 	val := luaState.GetGlobal(key)
+
 	return luaToJsVal(val, 0)
 }
 
+// ==========================================================================
+// Set a specific global variable in the Lua state by name
+// ==========================================================================
+func setGlobal(this js.Value, args []js.Value) interface{} {
+	if len(args) < 2 {
+		return "Error: missing argument"
+	}
+
+	key := args[0].String()
+	val := jsValToLua(args[1])
+
+	luaState.SetGlobal(key, val)
+
+	return nil
+}
+
+// ==========================================================================
+// Call a Lua function by name with arguments and return the result
+// ==========================================================================
 func callFunction(this js.Value, args []js.Value) interface{} {
 	if len(args) < 1 {
 		return js.Global().Get("Error").New("Error: missing function name")
@@ -117,6 +156,9 @@ func callFunction(this js.Value, args []js.Value) interface{} {
 	return js.Null()
 }
 
+// ==========================================================================
+// Helper: Convert a Lua value to a JavaScript value, handling various types
+// ==========================================================================
 func luaToJsVal(val lua.LValue, depth int) js.Value {
 	// Limit recursion depth to avoid deep or cyclic tables
 	if depth > 5 {
@@ -153,6 +195,9 @@ func luaToJsVal(val lua.LValue, depth int) js.Value {
 	}
 }
 
+// ==========================================================================
+// Helper: Convert a JavaScript value to a Lua value, handling various types
+// ==========================================================================
 func jsValToLua(val js.Value) lua.LValue {
 	switch val.Type() {
 	case js.TypeBoolean:

@@ -1,7 +1,14 @@
+// ===================================================================================
+// Codex - Interactive Storytelling Platform
+// Copyright (C) 2025 Ben Coleman, Licensed under the MIT License
+// story.ts - The Story class is the core of the engine and interface with outside
+// ===================================================================================
+
 import { Section } from './section'
 import { parse } from 'yaml'
 
-import { initLua } from '../lua/lua'
+import { initLua, type BasicType } from '../lua/lua'
+import type { StoryYAML } from './story-types'
 
 export const LuaVM = await initLua()
 
@@ -26,8 +33,8 @@ export class Story {
   // =================================================================================
   // Get all global variables from the Lua VM, excluding internal and standard libs
   // =================================================================================
-  getGlobals(): Record<string, any> {
-    const globals: Record<string, any> = {}
+  getGlobals(): Record<string, BasicType> {
+    const globals: Record<string, BasicType> = {}
     const luaGlobals = LuaVM.GetAllGlobals()
 
     for (const [key, value] of Object.entries(luaGlobals)) {
@@ -54,15 +61,22 @@ export class Story {
   }
 
   // =================================================================================
+  // Set a global variable in the Lua VM
+  // =================================================================================
+  setGlobal(name: string, value: BasicType): void {
+    LuaVM.SetGlobal(name, value)
+  }
+
+  // =================================================================================
   // Trigger an event by its ID, passing any arguments to the Lua handler
   // =================================================================================
-  trigger(eventId: string, ...args: any[]): string {
+  trigger(eventId: string, ...args: BasicType[]): string {
     if (!this.events.has(eventId)) {
       console.warn(`Event trigger failed: no handler for ${eventId} found in story`)
       return `Unable to trigger event: ${eventId}`
     }
 
-    return LuaVM.CallFunction(`event_${eventId}`, ...args)
+    return LuaVM.CallFunction(`event_${eventId}`, ...args) as string
   }
 
   // =================================================================================
@@ -71,14 +85,14 @@ export class Story {
   static async parse(url: string): Promise<Story> {
     if (Object.keys(LuaVM).length === 0) {
       console.error('Lua VM not initialized')
-      return Promise.reject('Lua VM not initialized')
+      return Promise.reject(new Error('Lua VM not initialized'))
     }
 
     const res = await fetch(url)
     const text = await res.text()
     console.log('Fetched story file from', url, 'with content length:', text.length)
 
-    const data = parse(text, { merge: true }) as any
+    const data = parse(text, { merge: true }) as StoryYAML
 
     const story = new Story(data.title || 'Untitled Story')
 
@@ -168,9 +182,9 @@ export class Story {
     // Parse event handlers
     if (data.events) {
       for (const eventId in data.events) {
-        const eventData = data.events[eventId]
-        const params = eventData.params || []
-        const runCode = eventData.run || ''
+        const event = data.events[eventId]
+        const params = event.params || []
+        const runCode = event.run || ''
 
         const funcCode = `function event_${eventId}(${params.join(', ')})
                             ${runCode}
@@ -183,8 +197,8 @@ export class Story {
     // Parse hooks
     if (data.hooks) {
       for (const hookId in data.hooks) {
-        const hookData = data.hooks[hookId]
-        const runCode = hookData.run || ''
+        const hook = data.hooks[hookId]
+        const runCode = hook.run || ''
 
         const funcCode = `function hook_${hookId}()
                             ${runCode}
@@ -211,7 +225,13 @@ export class Story {
     return text.replace(/{(.*?)}/g, (_, expr) => {
       try {
         const result = LuaVM.DoString('return ' + expr)
-        return result !== undefined ? result.toString() : ''
+        if (result instanceof Error) {
+          console.error('Error evaluating expression:', expr, result)
+          return ''
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-base-to-string
+        return result !== undefined ? result!.toString() : ''
       } catch (e) {
         console.error('Error evaluating expression:', expr, e)
         return ''

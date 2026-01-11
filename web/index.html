@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/pngl" href="book.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Codex Loading...</title>
-    <script type="module" src="src/main.ts"></script>
+    <script type="module" src="src/webapp.ts"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,6 +14,7 @@
       rel="stylesheet"
     />
   </head>
+
   <body x-data="appState">
     <section>
       <header x-text="section.title"></header>
@@ -30,9 +31,6 @@
     <footer :class="{ 'sheet-collapsed': !sheetVisible }" @click="sheetVisible = !sheetVisible">
       <div class="row" x-show="!sheetVisible" x-transition.duration.200ms.scale.50.origin.top>
         <strong>Character Sheet</strong>
-        <!-- <strong>Map</strong>
-        <strong>Save</strong>
-        <strong>Load</strong> -->
       </div>
 
       <table>
@@ -42,15 +40,15 @@
         </tr>
         <tr>
           <td>Stamina:</td>
-          <td x-text="globals.stamina"></td>
+          <td x-text="`${globals.stamina} / ${globals.stamina_init}`"></td>
         </tr>
         <tr>
           <td>Skill:</td>
-          <td x-text="globals.skill"></td>
+          <td x-text="`${globals.skill} / ${globals.skill_init}`"></td>
         </tr>
         <tr>
           <td>Luck:</td>
-          <td x-text="globals.luck"></td>
+          <td x-text="`${globals.luck} / ${globals.luck_init}`"></td>
         </tr>
         <tr>
           <td>Gold:</td>
@@ -59,21 +57,17 @@
         <tr>
           <td>Equip:</td>
           <td>
-            <template x-for="(item, index) in globals.equip" :key="index">
-              <span>
-                <span x-text="niceify(item)" class="equipment"></span>
-                <span x-text="index < globals.equip.length - 1 ? ', ' : ''"></span>
-              </span>
+            <template x-for="[key, item] in Object.entries(globals.equip)" :key="key">
+              <span> <span x-text="niceify(item)" class="equipment"></span><span x-text="key < Object.keys(globals.equip).length ? ', ' : ''"></span></span>
             </template>
           </td>
         </tr>
         <tr>
           <td>Potions:</td>
           <td>
-            <template x-for="(item, index) in globals.consumables" :key="index">
+            <template x-for="[key, item] in Object.entries(globals.consumables)" :key="key">
               <span>
-                <a x-text="niceify(item)" class="consumable" @click.stop="useItem(item)"></a>
-                <span x-text="index < globals.consumables.length - 1 ? ', ' : ''"></span>
+                <a x-text="niceify(item)" class="consumable" @click.stop="useItem(item)"></a><span x-text="key < Object.keys(globals.consumables).length ? ', ' : ''"></span>
               </span>
             </template>
           </td>

@@ -1,0 +1,8 @@
+{
+  "gopls": {
+    "ui.diagnostic.analyses": {
+      "QF1003": false
+    }
+  },
+  "prettier.configPath": ".dev/.prettierrc"
+}

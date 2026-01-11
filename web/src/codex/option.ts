@@ -1,10 +1,17 @@
+// ================================================================================================
+// Codex - Interactive Storytelling Platform
+// Copyright (C) 2025 Ben Coleman, Licensed under the MIT License
+// option.ts - Options represent choices users can make, and drive the story flow & overall state
+// ================================================================================================
+
 import type { Section } from './section'
 import { LuaVM, Story } from './story'
+import type { OptionYAML } from './story-types'
 
 export interface Result {
-  newSectionId: string | undefined
+  nextSectionId: string | undefined
   notifyMsg: string | null
-  confirmMsg: string | null
+  confirmMsg: string | null // Not yet implemented
 }
 
 export class Option {
@@ -17,17 +24,23 @@ export class Option {
   private flags: Set<string> = new Set()
   private notify: string | null = null
 
+  // Getters...
+
+  public get text(): string {
+    return Story.replaceVars(this._text)
+  }
+
+  // Private constructor used by static parse method
   private constructor(id: string, text: string, target: string) {
     this.id = id
     this._text = text
     this.target = target
   }
 
-  public get text(): string {
-    return Story.replaceVars(this._text)
-  }
-
-  static parse(id: string, data: any, sectionId: string): Option {
+  // ==================================================================================
+  // Parse an Option from YAML data
+  // ==================================================================================
+  static parse(id: string, data: OptionYAML, sectionId: string): Option {
     // Option can be in short form [text, goto]
     if (Array.isArray(data)) {
       return new Option(id, data[0], data[1])
@@ -59,6 +72,9 @@ export class Option {
     return opt
   }
 
+  // ==================================================================================
+  // Determine if this option is available to the user based on its condition and flags
+  // ==================================================================================
   public isAvailable(section: Section): boolean {
     if (this.hidden) {
       return false
@@ -87,10 +103,14 @@ export class Option {
       return false
     }
 
-    return result
+    return result as boolean
   }
 
+  // ==================================================================================
+  // Execute the option's run code and return result, typically a section to move to
+  // ==================================================================================
   public execute(): Result {
+    // Execute option run code if any
     if (this.runCode) {
       const res = LuaVM.DoString(this.runCode)
       if (res instanceof Error) {
@@ -98,22 +118,23 @@ export class Option {
       }
     }
 
+    // Call post option hook if defined
     LuaVM.DoString(`if type(hook_post_option) == "function" then hook_post_option() end`)
 
+    // Handle 'once' flag to hide option after use
     if (this.flags.has('once')) {
       this.hidden = true
     }
 
+    // Determine target section, allowing Lua to override via goto_section global
     let target = this.target
     const gotoSection = LuaVM.GetGlobal('goto_section')
     if (gotoSection) {
-      target = gotoSection
+      target = gotoSection as string
     }
 
-    console.log('Navigating to section:', target)
-
     return {
-      newSectionId: target,
+      nextSectionId: target,
       notifyMsg: Story.replaceVars(this.notify || ''),
       confirmMsg: null,
     }

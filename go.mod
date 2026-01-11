@@ -1,4 +1,4 @@
-module github.com/benc-uk/codex2
+module github.com/benc-uk/codex
 
 go 1.25.0
 

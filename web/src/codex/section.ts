@@ -1,5 +1,12 @@
+// ===================================================================================
+// Codex - Interactive Storytelling Platform
+// Copyright (C) 2025 Ben Coleman, Licensed under the MIT License
+// section.ts - Sections are the building blocks of a story with text and options
+// ===================================================================================
+
 import { Option } from './option'
 import { LuaVM, Story } from './story'
+import type { SectionYAML } from './story-types'
 
 export class Section {
   public readonly id: string
@@ -8,6 +15,8 @@ export class Section {
   private _options: Map<string, Option>
   private runCode: string | null = null
   private _visits = 0
+
+  // Getters...
 
   public get options(): Map<string, Option> {
     const availOptions = new Map<string, Option>()
@@ -33,6 +42,7 @@ export class Section {
     return Story.replaceVars(this._text)
   }
 
+  // Private constructor used by static parse method
   private constructor(id: string, title: string, content: string) {
     this.id = id
     this._title = title
@@ -40,7 +50,10 @@ export class Section {
     this._options = new Map<string, Option>()
   }
 
-  static parse(id: string, data: any): Section {
+  // ==================================================================================
+  // Parse a Section from YAML data
+  // ==================================================================================
+  static parse(id: string, data: SectionYAML): Section {
     const sect = new Section(id, data.title, data.text)
 
     // Parse options
@@ -75,11 +88,15 @@ export class Section {
     return sect
   }
 
+  // ==================================================================================
+  // Mark this section as visited and execute its run code
+  // ==================================================================================
   public visit(): void {
     this._visits += 1
 
     // temp is reset before each section run to avoid leftover state
     // The s table is a ref to the section specific var table, which persists
+    // This prepares the Lua environment for the section's run code and any options run here
     const code = `
       temp = {}
       s = __s_${this.id} or {}

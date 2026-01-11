@@ -42,7 +42,8 @@ init: |
   function test_luck()
     local luck_roll = d(6) + d(6)
     local was_lucky = luck_roll <= luck
-    luck_msg = "Your luck is "..luck.."\nYou rolled a "..luck_roll.."\n"
+    luck_msg = "Your luck is "..luck.."; you rolled a "..luck_roll.."\n"
+    luck_msg = luck_msg .. (was_lucky and "You are lucky!" or "You are unlucky!")
     luck = math.max(0, luck - 1)
     return was_lucky
   end
@@ -66,76 +67,74 @@ init: |
   end
 
 events:
-  use_item: |
-    if data.item_id == "healing potion (2 uses)" then
-      stamina = stamina + 4
-      remove(consumables, "healing potion (2 uses)")
-      insert(consumables, "healing potion (1 use)")
-      return "You sip at the healing potion and recover 4 stamina."
-    elseif data.item_id == "healing potion (1 use)" then
-      stamina = stamina + 4
-      remove(consumables, "healing potion (1 use)")
-      return "You drink the last of the healing potion and recover 4 stamina."
-    end
-
-    return "You can't use that item right now."
+  use_item:
+    params: [item_id]
+    run: |
+      if item_id == "potion of strength (2 uses)" then
+        stamina = stamina + 4
+        remove(consumables, "potion of strength (2 uses)")
+        insert(consumables, "potion of strength (1 use)")
+        return "You sip at the potion of strength and recover 4 stamina."
+      elseif item_id == "potion of strength (1 use)" then
+        stamina = stamina + 4
+        remove(consumables, "potion of strength (1 use)")
+        return "You drink the last of the potion of strength and recover 4 stamina."
+      end
+      return "You can't use that item right now."
 
 templates:
-  - &fight
-    text: 'Attack the {s.name}'
-    if: s.stamina > 0
-    run: |
-      s.luck_used = false
-      s.stamina = fight(s.name, s.skill, s.stamina)
-    goto: self
+  - &combat
+    attack:
+      text: 'Attack the {s.name}'
+      if: s.stamina > 0
+      run: |
+        s.luck_used = false
+        s.stamina = fight(s.name, s.skill, s.stamina)
 
-  - &push_luck_damage
-    text: 'Try to drive the attack: 🎲 LUCK'
-    if: s.stamina > 0 and luck > 0 and string.find(fight_msg, "You hit") ~= nil and not s.luck_used
-    run: |
-      luck_msg = ""
-      if test_luck() then
-        s.stamina = math.max(0, s.stamina - 2)
-        luck_msg = luck_msg .. " You deal an extra 2 points of damage."
-      else
-        s.stamina = s.stamina + 1
-        luck_msg = luck_msg .. " You were unlucky! The enemy takes 1 less damage."
-      end
-      if s.stamina <= 0 then
-        fight_msg = "\nThe "..s.name.." is defeated!"
-      end
-      s.luck_used = true;
-    notify: '{luck_msg}'
-    goto: self
+    push_luck_damage:
+      text: 'Try to drive the attack: 🎲 LUCK'
+      if: s.stamina > 0 and luck > 0 and string.find(fight_msg, "You hit") ~= nil and not s.luck_used
+      run: |
+        luck_msg = ""
+        if test_luck() then
+          s.stamina = math.max(0, s.stamina - 2)
+          luck_msg = luck_msg .. " You deal an extra 2 points of damage."
+        else
+          s.stamina = s.stamina + 1
+          luck_msg = luck_msg .. " The enemy takes 1 less damage."
+        end
+        if s.stamina <= 0 then
+          fight_msg = "\nThe "..s.name.." is defeated!"
+        end
+        s.luck_used = true;
+      notify: '{luck_msg}'
 
-  - &push_luck_avoid
-    text: 'Attempt to lessen the blow: 🎲 LUCK'
-    if: luck > 0 and string.find(fight_msg, "hits you") ~= nil and not s.luck_used
-    run: |
-      luck_msg = ""
-      if test_luck() then
-        stamina = stamina + 1
-        luck_msg = luck_msg .. " You were lucky! You avoid 1 points of damage."
-      else
-        stamina = math.max(0, stamina - 1)
-        luck_msg = luck_msg .. " You were unlucky! You take an extra 1 point of damage."
-      end
-      s.luck_used = true;
-    notify: '{luck_msg}'
-    goto: self
+    push_luck_avoid:
+      text: 'Attempt to lessen the blow: 🎲 LUCK'
+      if: luck > 0 and string.find(fight_msg, "hits you") ~= nil and not s.luck_used
+      run: |
+        luck_msg = ""
+        if test_luck() then
+          stamina = stamina + 1
+          luck_msg = luck_msg .. " You avoid 1 points of damage."
+        else
+          stamina = math.max(0, stamina - 1)
+          luck_msg = luck_msg .. " You take an extra 1 point of damage."
+        end
+        s.luck_used = true;
+      notify: '{luck_msg}'
 
   - &test_luck
     run: s.lucky = test_luck()
     flags: [once]
     notify: '{luck_msg}'
-    goto: self
 
   - &luck_pass
-    if: s.lucky
+    if: s.lucky == true
     flags: [later]
 
   - &luck_fail
-    if: not s.lucky
+    if: s.lucky == false
     flags: [later]
 
   - &eat_meal
@@ -145,7 +144,6 @@ templates:
       meals = meals - 1
       stamina = math.min(12, stamina + 4)
     notify: 'You eat a meal and restore 4 stamina, you have {meals} provisions left.'
-    goto: self
 
 sections:
   start:
@@ -165,7 +163,6 @@ sections:
           stamina_init = stamina
           luck_init = luck
           s.rolled = true
-          luck =2
         notify: "Your Skill is {skill}\nYour Stamina is {stamina}\nAnd your Luck is {luck}."
       begin:
         text: 'Proceed: Select your starting potion'
@@ -207,20 +204,15 @@ sections:
     text: There is a right-hand turn to the north in the passage. Cautiously you approach a sentry post on the corner and, as you look in, you can see a strange Goblin-like creature in leather armour asleep at his post.
     options:
       sneak:
+        <<: *test_luck
         text: 'Try to sneak past: 🎲 LUCK'
-        run: s.sneak = test_luck()
-        flags: [once]
-        notify: '{luck_msg}'
-        goto: self
       sneak_ok:
+        <<: *luck_pass
         text: 'He does not wake up and remains snoring loudly'
-        if: s.sneak
-        flags: [later]
         goto: s_301
       sneak_fail:
-        text: 'You step with a crunch on some loose ground and his eyes flick open'
-        if: not s.sneak
-        flags: [later]
+        <<: *luck_fail
+        text: 'You step with a crunch on some loose ground, his eyes flick open!'
         goto: s_248
 
   s_301:
@@ -234,12 +226,7 @@ sections:
     text: "The creature that has just awakened is an ORC! He scrambles to his feet and turns to grasp at a rope which is probably the alarm bell. You must attack him quickly.\n\nORC ⎯⎯⎯ Skill: {s.skill} Stamina: {s.stamina}\n\n{fight_msg}"
     vars: { stamina: 5, skill: 6, name: 'orc' }
     options:
-      fight:
-        <<: *fight
-      push_luck_damage:
-        <<: *push_luck_damage
-      push_luck_avoid:
-        <<: *push_luck_avoid
+      <<: *combat
       after_battle:
         text: 'Press on northwards'
         if: s.stamina == 0
@@ -253,14 +240,14 @@ sections:
         text: 'Return to the corridor and press on northwards'
         flags: [first]
         goto: s_208
-      sneak:
+      grab_box:
         <<: *test_luck
-        text: 'Try to sneak to the box without waking the guard: 🎲 LUCK'
-      sneak_ok:
+        text: 'Try to grab to the box: 🎲 LUCK'
+      grab_box_ok:
         <<: *luck_pass
         text: 'You manage to grab box without waking the guard'
         goto: s_147
-      sneak_fail:
+      grab_box_fail:
         <<: *luck_fail
         text: 'As you reach for the box, the guard stirs and wakes up!'
         goto: s_33
@@ -269,12 +256,7 @@ sections:
     text: "The sleeping creature awakens startled. He jumps up and rushes at you, unarmed. With your sword you should be able to defeat him, but his sharp teeth look rather vicious!\n\nORC ⎯⎯⎯ Skill: {s.skill} Stamina: {s.stamina}\n\n{fight_msg}"
     vars: { stamina: 4, skill: 6, name: 'orc' }
     options:
-      fight:
-        <<: *fight
-      push_luck_damage:
-        <<: *push_luck_damage
-      push_luck_avoid:
-        <<: *push_luck_avoid
+      <<: *combat
       after_battle:
         text: 'Take the box and leave the room'
         if: s.stamina == 0
@@ -304,12 +286,7 @@ sections:
     text: "The box is light, but something rattles within. You open the lid and a small SNAKE darts out to bite at your wrist! You must fight the Snake\n\nSNAKE ⎯⎯⎯ Skill: {s.skill} Stamina: {s.stamina}\n\n{fight_msg}"
     vars: { stamina: 3, skill: 5, name: 'snake' }
     options:
-      fight:
-        <<: *fight
-      push_luck_damage:
-        <<: *push_luck_damage
-      push_luck_avoid:
-        <<: *push_luck_avoid
+      <<: *combat
       after_battle:
         text: 'You have defeated the snake'
         if: s.stamina == 0
