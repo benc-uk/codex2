@@ -177,6 +177,29 @@ func luaToJsVal(val lua.LValue, depth int) js.Value {
 	case lua.LNumber:
 		return js.ValueOf(float64(v))
 	case *lua.LTable:
+		// Check if the table is an array
+		length := v.Len()
+		isArray := true
+		count := 0
+
+		v.ForEach(func(key lua.LValue, value lua.LValue) {
+			if key.Type() != lua.LTNumber {
+				isArray = false
+			} else {
+				count++
+			}
+		})
+
+		if isArray && count == length {
+			// Convert to JS array
+			jsArr := js.Global().Get("Array").New(length)
+			for i := 1; i <= length; i++ {
+				jsArr.SetIndex(i-1, luaToJsVal(v.RawGetInt(i), depth+1))
+			}
+			return jsArr
+		}
+
+		// Convert to JS object
 		jsObj := js.Global().Get("Object").New()
 
 		v.ForEach(func(key lua.LValue, value lua.LValue) {

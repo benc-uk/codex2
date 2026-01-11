@@ -6,10 +6,13 @@ vars:
   skill: 0
   luck: 0
   stamina: 0
+  skill_init: 0
+  luck_init: 0
+  stamina_init: 0
   gold: 0
   equip: ['rusty_dagger', 'pebble']
-  consumables: ['healing_potion']
-  player_name: 'Sad Ken The Adventurer'
+  consumables: []
+  player_name: 'Hairy Dave'
 
 events:
   use_item:
@@ -53,6 +56,13 @@ init: |
   stamina = d(6) + d(6) + 8
   skill = d(6) + 4
   luck = d(6) + 5
+  stamina_init = stamina
+  skill_init = skill
+  luck_init = luck
+
+  local names = {"Dave", "Herbert", "Gary", "Nigel", "Trevor", "Colin", "Rupert", "Nigel", "Alfred", "Bertram"}
+  local adjectives = {"Hairy", "Sneaky", "Brave", "Clever", "Mighty", "Swift", "Fierce", "Bold", "Smelly", "Nimble"}
+  player_name = names[d(#names)] .. " the " .. adjectives[d(#adjectives)]
 
 templates:
   - &fight

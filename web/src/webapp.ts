@@ -4,8 +4,6 @@
 // webapp.ts - Main web application entry point & state using Alpine.js
 // ===================================================================================
 
-import './style.css'
-
 import Alpine from 'alpinejs'
 import { Story } from './codex/story'
 import { newlineToBr, niceify } from './utils/strings'
@@ -21,10 +19,7 @@ Alpine.data('appState', () => ({
     text: 'Please wait while the story loads...',
     options: new Map<string, Option>(),
   },
-  globals: {
-    equip: {},
-    consumables: {},
-  } as Record<string, unknown>,
+  state: {} as Record<string, unknown>,
 
   loaded: false,
   sheetVisible: true,
@@ -48,7 +43,19 @@ Alpine.data('appState', () => ({
     }
 
     if (startSectionId === 'start') {
-      localStorage.removeItem('codex_globals')
+      localStorage.removeItem('codex_state')
+    } else {
+      // Load saved state from localStorage
+      const savedState = localStorage.getItem('codex_state')
+      if (savedState) {
+        try {
+          const stateObj = JSON.parse(savedState) as Record<string, unknown>
+          story.setState(stateObj)
+          console.log('Restored saved state from localStorage:', stateObj)
+        } catch (e) {
+          console.error('Failed to parse saved state from localStorage:', e)
+        }
+      }
     }
 
     this.title = story.title
@@ -58,28 +65,9 @@ Alpine.data('appState', () => ({
     this.gotoSection(startSectionId)
     this.loaded = true
 
-    // Load global state from localStorage if present
-    const savedGlobals = localStorage.getItem('codex_globals')
-    if (savedGlobals && startSectionId !== 'start') {
-      const saved = JSON.parse(savedGlobals) as Record<string, unknown>
-      story.setGlobal('skill', saved['skill'] as number)
-      story.setGlobal('stamina', saved['stamina'] as number)
-      story.setGlobal('luck', saved['luck'] as number)
-      story.setGlobal('skill_init', saved['skill_init'] as number)
-      story.setGlobal('stamina_init', saved['stamina_init'] as number)
-      story.setGlobal('luck_init', saved['luck_init'] as number)
-      story.setGlobal('meals', saved['meals'] as number)
-      story.setGlobal('equip', saved['equip'] as string[])
-      story.setGlobal('consumables', saved['consumables'] as string[])
-      story.setGlobal('player_name', saved['player_name'] as string)
-
-      this.globals = saved
-      console.log('Loaded saved global state from localStorage')
-    }
-
     // Watch for global state changes
-    this.$watch('globals', (newGlobals) => {
-      localStorage.setItem('codex_globals', JSON.stringify(newGlobals))
+    this.$watch('state', (newState) => {
+      localStorage.setItem('codex_state', JSON.stringify(newState))
     })
   },
 
@@ -94,8 +82,7 @@ Alpine.data('appState', () => ({
     }
 
     section.visit()
-    const g = story.getGlobals()
-    this.globals = g
+    this.state = story.getState()
 
     this.section = {
       id: section.id,
@@ -103,8 +90,6 @@ Alpine.data('appState', () => ({
       text: newlineToBr(section.text),
       options: section.options,
     }
-
-    console.log('Navigated to section:', sectionId)
 
     // Update URL hash without reloading page
     window.history.replaceState(null, '', `#${sectionId}`)
@@ -140,7 +125,7 @@ Alpine.data('appState', () => ({
 
     const message = story.trigger('use_item', itemId)
 
-    this.globals = story.getGlobals()
+    this.state = story.getState()
     this.notify(message)
   },
 

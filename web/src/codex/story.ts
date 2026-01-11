@@ -14,6 +14,7 @@ export const LuaVM = await initLua()
 
 export class Story {
   private sections: Map<string, Section>
+  public readonly vars: string[] = []
   public readonly title: string
   public readonly events: Set<string>
 
@@ -31,40 +32,38 @@ export class Story {
   }
 
   // =================================================================================
-  // Get all global variables from the Lua VM, excluding internal and standard libs
+  // Get the current global state as a key-value map
   // =================================================================================
-  getGlobals(): Record<string, BasicType> {
-    const globals: Record<string, BasicType> = {}
-    const luaGlobals = LuaVM.GetAllGlobals()
+  getState(): Record<string, unknown> {
+    const state: Record<string, unknown> = {}
 
-    for (const [key, value] of Object.entries(luaGlobals)) {
-      if (
-        key.startsWith('__s_') ||
-        typeof value === 'undefined' ||
-        key === 'math' ||
-        key === 'os' ||
-        key === 'string' ||
-        key === 'table' ||
-        key === 'debug' ||
-        key === 'io' ||
-        key === 'package' ||
-        key === 'channel' ||
-        key === 'coroutine'
-      ) {
-        continue
-      }
-
-      globals[key] = luaGlobals[key]
+    for (const varName of this.vars) {
+      const value = LuaVM.GetGlobal(varName)
+      state[varName] = value
     }
 
-    return globals
+    return state
   }
 
   // =================================================================================
-  // Set a global variable in the Lua VM
+  // Set the global state from a key-value map
   // =================================================================================
-  setGlobal(name: string, value: BasicType): void {
-    LuaVM.SetGlobal(name, value)
+  setState(newState: Record<string, unknown>): void {
+    for (const varName of this.vars) {
+      if (Object.hasOwn(newState, varName)) {
+        const value = newState[varName]
+        let luaValue: string
+
+        if (Array.isArray(value)) {
+          // Convert array to Lua table
+          luaValue = `{ ${value.map((v) => JSON.stringify(v)).join(', ')} }`
+        } else {
+          luaValue = JSON.stringify(value)
+        }
+
+        LuaVM.DoString(`${varName} = ${luaValue}`)
+      }
+    }
   }
 
   // =================================================================================
@@ -100,11 +99,14 @@ export class Story {
     if (data.vars) {
       const varsCode = Object.entries(data.vars)
         .map(([key, value]) => {
+          story.vars.push(key)
           const v = JSON.stringify(value)
+
           // Handle arrays as Lua tables
           if (v.startsWith('[')) {
             return `${key} = { ${v.slice(1, -1)} }`
           }
+
           return `${key} = ${v}`
         })
         .join('\n')
@@ -117,7 +119,7 @@ export class Story {
       function dice(count, sides, modifier)
         local total = 0
         for i = 1, count do
-          total = total + math.floor(math.random(1, sides+1))
+          total = total + math.floor(math.random(sides))
         end
         return total + modifier
       end 

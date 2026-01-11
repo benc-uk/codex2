@@ -7,6 +7,8 @@
     <title>Codex Loading...</title>
     <script type="module" src="src/webapp.ts"></script>
 
+    <link rel="stylesheet" href="style.css" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -28,47 +30,45 @@
       </nav>
     </section>
 
-    <footer :class="{ 'sheet-collapsed': !sheetVisible }" @click="sheetVisible = !sheetVisible">
+    <footer x-show="state.stamina != 0" :class="{ 'sheet-collapsed': !sheetVisible }" @click="sheetVisible = !sheetVisible">
       <div class="row" x-show="!sheetVisible" x-transition.duration.200ms.scale.50.origin.top>
         <strong>Character Sheet</strong>
       </div>
 
-      <table>
+      <table x-transition.duration.200ms>
         <tr>
           <td>Name:</td>
-          <td x-text="globals.player_name"></td>
+          <td x-text="state.player_name"></td>
         </tr>
         <tr>
           <td>Stamina:</td>
-          <td x-text="`${globals.stamina} / ${globals.stamina_init}`"></td>
+          <td x-text="`${state.stamina} / ${state.stamina_init}`"></td>
         </tr>
         <tr>
           <td>Skill:</td>
-          <td x-text="`${globals.skill} / ${globals.skill_init}`"></td>
+          <td x-text="`${state.skill} / ${state.skill_init}`"></td>
         </tr>
         <tr>
           <td>Luck:</td>
-          <td x-text="`${globals.luck} / ${globals.luck_init}`"></td>
+          <td x-text="`${state.luck} / ${state.luck_init}`"></td>
         </tr>
         <tr>
           <td>Gold:</td>
-          <td x-text="globals.gold"></td>
+          <td x-text="state.gold"></td>
         </tr>
         <tr>
           <td>Equip:</td>
           <td>
-            <template x-for="[key, item] in Object.entries(globals.equip)" :key="key">
-              <span> <span x-text="niceify(item)" class="equipment"></span><span x-text="key < Object.keys(globals.equip).length ? ', ' : ''"></span></span>
+            <template x-for="(item, index) in state.equip" :key="index">
+              <span> <span x-text="niceify(item)" class="equipment"></span><span x-text="index < state.equip.length - 1 ? ', ' : ''"></span></span>
             </template>
           </td>
         </tr>
         <tr>
           <td>Potions:</td>
           <td>
-            <template x-for="[key, item] in Object.entries(globals.consumables)" :key="key">
-              <span>
-                <a x-text="niceify(item)" class="consumable" @click.stop="useItem(item)"></a><span x-text="key < Object.keys(globals.consumables).length ? ', ' : ''"></span>
-              </span>
+            <template x-for="(item, index) in state.consumables" :key="index">
+              <span> <a x-text="niceify(item)" class="consumable" @click.stop="useItem(item)"></a><span x-text="index < state.consumables.length - 1 ? ', ' : ''"></span> </span>
             </template>
           </td>
         </tr>
