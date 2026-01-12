@@ -1,0 +1,703 @@
+title: Station Omega - Emergency Protocol
+author: Codex AI
+version: 1.0
+
+vars:
+  skill: 0
+  luck: 0
+  stamina: 0
+  skill_init: 0
+  luck_init: 0
+  stamina_init: 0
+  oxygen: 100
+  equip: ['emergency_kit']
+  consumables: []
+  keycards: []
+  systems_checked: 0
+  crew_saved: 0
+  reactor_stable: false
+
+init: |
+  fight_msg = ""
+  function fight(name, enemy_skill, enemy_stamina)
+    local player_attack = d(6) + d(6) + skill
+    local enemy_attack = d(6) + d(6) + enemy_skill
+    fight_msg = "Your attack roll: "..player_attack.."\nThe "..name.." rolls: "..enemy_attack.."\n\n"
+
+    if player_attack > enemy_attack then
+      enemy_stamina = math.max(0, enemy_stamina - 2)
+      fight_msg = fight_msg.."You hit the "..name.." for 2 damage!"
+    elseif enemy_attack > player_attack then
+      stamina = stamina - 2
+      fight_msg = fight_msg.."The "..name.." hits you for 2 damage!"
+    else
+      fight_msg = fight_msg.."It's a tie! No damage dealt."
+    end
+
+    if enemy_stamina <= 0 then
+      fight_msg = fight_msg.."\nThe "..name.." is defeated!"
+    end
+
+    return enemy_stamina
+  end
+
+  function test_luck()
+    local luck_roll = d(6) + d(6)
+    local was_lucky = luck_roll <= luck
+    luck_msg = "Your luck is "..luck.."; you rolled a "..luck_roll.."\n"
+    luck_msg = luck_msg .. (was_lucky and "You are lucky!" or "You are unlucky!")
+    luck = math.max(0, luck - 1)
+    return was_lucky
+  end
+
+  function has_keycard(card_name)
+    return contains(keycards, card_name)
+  end
+
+  stamina = d(6) + d(6) + 12
+  skill = d(6) + 6
+  luck = d(6) + 6
+  stamina_init = stamina
+  skill_init = skill
+  luck_init = luck
+
+events:
+  use_item:
+    params: [item_id]
+    run: |
+      if item_id == "medkit" then
+        stamina = math.min(stamina_init, stamina + 6)
+        remove(consumables, "medkit")
+        return "You use the medkit and restore 6 stamina."
+      elseif item_id == "oxygen_canister" then
+        oxygen = math.min(100, oxygen + 30)
+        remove(consumables, "oxygen_canister")
+        return "You use the oxygen canister and restore 30 oxygen."
+      end
+      return "You can't use that item right now."
+
+hooks:
+  post_option:
+    run: |
+      if stamina <= 0 then
+        goto_section = "dead"
+      elseif oxygen <= 0 then
+        goto_section = "suffocated"
+      end
+
+templates:
+  - &combat
+    attack:
+      text: 'Attack the {s.name}'
+      if: s.stamina > 0
+      run: |
+        s.luck_used = false
+        s.stamina = fight(s.name, s.skill, s.stamina)
+        oxygen = oxygen - 2
+
+    push_luck_damage:
+      text: 'Try to drive the attack: 🎲 LUCK'
+      if: s.stamina > 0 and luck > 0 and string.find(fight_msg, "You hit") ~= nil and not s.luck_used
+      run: |
+        luck_msg = ""
+        if test_luck() then
+          s.stamina = math.max(0, s.stamina - 2)
+          luck_msg = luck_msg .. " You deal an extra 2 points of damage."
+        else
+          s.stamina = s.stamina + 1
+          luck_msg = luck_msg .. " The enemy takes 1 less damage."
+        end
+        if s.stamina <= 0 then
+          fight_msg = "\nThe "..s.name.." is defeated!"
+        end
+        s.luck_used = true;
+      notify: '{luck_msg}'
+
+    push_luck_avoid:
+      text: 'Attempt to lessen the blow: 🎲 LUCK'
+      if: luck > 0 and string.find(fight_msg, "hits you") ~= nil and not s.luck_used
+      run: |
+        luck_msg = ""
+        if test_luck() then
+          stamina = stamina + 1
+          luck_msg = luck_msg .. " You avoid 1 point of damage."
+        else
+          stamina = math.max(0, stamina - 1)
+          luck_msg = luck_msg .. " You take an extra 1 point of damage."
+        end
+        s.luck_used = true;
+      notify: '{luck_msg}'
+
+  - &test_luck
+    run: s.lucky = test_luck()
+    flags: [once]
+    notify: '{luck_msg}'
+
+  - &luck_pass
+    if: s.lucky == true
+    flags: [later]
+
+  - &luck_fail
+    if: s.lucky == false
+    flags: [later]
+
+sections:
+  start:
+    title: 'Emergency Alert'
+    text: |
+      ALERT! CRITICAL SYSTEM FAILURE!
+
+      You wake abruptly to the harsh klaxon of the station's emergency alarm. Red emergency lights pulse through your quarters on Station Omega, a research facility orbiting Neptune. The intercom crackles with static before cutting out completely.
+
+      Through your viewport, you can see debris floating past - parts of the outer hull. Something has gone catastrophically wrong.
+
+      Your stats:
+      Skill: {skill}
+      Stamina: {stamina}
+      Luck: {luck}
+      Oxygen: {oxygen}%
+    options:
+      check_terminal:
+        text: 'Check the emergency terminal'
+        flags: [once]
+        run: |
+          temp.msg = "PRIORITY ALERT: Reactor containment breach in Sector 7. Hull integrity at 45%. Life support failing. Evacuate immediately."
+        notify: '{temp.msg}'
+        goto: start
+      grab_gear:
+        text: 'Grab your emergency gear'
+        flags: [once]
+        run: insert(equip, "flashlight")
+        notify: 'You grab your flashlight from the locker.'
+        goto: start
+      leave:
+        text: 'Exit your quarters'
+        goto: main_corridor
+
+  main_corridor:
+    title: 'Main Corridor - Deck 3'
+    text: |
+      The main corridor is in chaos. Emergency lights flicker, casting long shadows. Smoke drifts from damaged ceiling panels, and you can hear the groan of stressed metal. A body lies slumped against the wall - a crew member who didn't make it.
+
+      Oxygen: {oxygen}%
+
+      Corridor access: North leads to the Medical Bay, South to Security Office, East to Crew Quarters, West to the Cafeteria. Your quarters are behind you.
+    run: |
+      if s.visits == 1 then
+        oxygen = oxygen - 3
+      end
+    options:
+      quarters: ['Return to your quarters', start]
+      north: ['Head to Medical Bay', medical_bay]
+      south: ['Go to Security Office', security_office]
+      east: ['Check Crew Quarters', crew_quarters]
+      west: ['Enter Cafeteria', cafeteria]
+      search_body:
+        text: 'Search the crew member'
+        flags: [once]
+        run: |
+          insert(equip, "keycard_green")
+          insert(keycards, "green")
+        notify: 'You find a GREEN SECURITY KEYCARD on the body. It might unlock restricted areas.'
+
+  security_office:
+    title: 'Security Office'
+    text: |
+      The security office is trashed. Monitors show static or broken camera feeds across the station. A weapons locker on the wall is sealed with a biometric lock, but it appears damaged.
+
+      Oxygen: {oxygen}%
+    run: oxygen = oxygen - 2
+    options:
+      back: ['Return to corridor', main_corridor]
+      check_monitors:
+        text: 'Examine the working monitors'
+        flags: [once]
+        notify: 'You see footage of the reactor breach - some kind of explosion. The docking bay appears intact!'
+      hack_locker:
+        <<: *test_luck
+        text: 'Try to hack the weapons locker: 🎲 LUCK'
+        if: not s.locker_opened
+      hack_success:
+        <<: *luck_pass
+        text: 'The locker opens!'
+        flags: [once]
+        run: |
+          insert(equip, "plasma_pistol")
+          insert(consumables, "medkit")
+          s.locker_opened = true
+        notify: 'You obtain a PLASMA PISTOL and a MEDKIT!'
+        goto: security_office
+      hack_fail:
+        <<: *luck_fail
+        text: 'The locker remains sealed'
+        flags: [once]
+        notify: 'The biometric system rejects your attempt. You receive a small electric shock. Lose 1 stamina.'
+        run: stamina = stamina - 1
+        goto: security_office
+      computer:
+        text: 'Access security computer'
+        if: not s.accessed_computer
+        run: |
+          s.accessed_computer = true
+          temp.info = "Station map downloaded to your emergency kit. You note that the DOCKING BAY requires a RED and BLUE keycard to access."
+        notify: '{temp.info}'
+        goto: security_office
+
+  medical_bay:
+    title: 'Medical Bay'
+    text: |
+      {contains(equip, "flashlight") and "Your flashlight illuminates the medical bay. It's in surprisingly good condition. Emergency power keeps the lights on and several medical stations are still functional. Cabinets line the walls." or "The medical bay is dark - most of the emergency lights are out. You can barely see the cabinets and equipment through the gloom."}
+
+      Oxygen: {oxygen}%
+    run: oxygen = oxygen - 2
+    options:
+      back: ['Return to corridor', main_corridor]
+      search_cabinets:
+        text: 'Search medical cabinets'
+        if: contains(equip, "flashlight")
+        flags: [once]
+        run: |
+          insert(consumables, "medkit")
+          insert(consumables, "medkit")
+          insert(consumables, "oxygen_canister")
+        notify: 'You find 2 MEDKITS and an OXYGEN CANISTER!'
+      cabinets_too_dark:
+        text: 'Search medical cabinets'
+        if: not contains(equip, "flashlight")
+        notify: "It's too dark to search effectively. You need a light source."
+      use_station:
+        text: 'Use medical diagnostic station'
+        if: contains(equip, "flashlight")
+        flags: [once]
+        run: |
+          stamina = math.min(stamina_init, stamina + 4)
+        notify: 'The auto-doc treats your injuries. You restore 4 stamina.'
+      station_too_dark:
+        text: 'Use medical diagnostic station'
+        if: not contains(equip, "flashlight")
+        notify: "The station's screen is too dim to see without additional light."
+      cryo_pod:
+        text: 'Check the cryo-pod'
+        if: contains(equip, "flashlight") and not s.checked_cryo
+        run: s.checked_cryo = true
+        goto: survivor_rescue
+
+  survivor_rescue:
+    title: 'Cryo-Pod Discovery'
+    text: |
+      Inside the medical bay's emergency cryo-pod, you find an unconscious crew member - Dr. Sarah Chen, the station's chief scientist. She's alive but injured.
+
+      Oxygen: {oxygen}%
+    options:
+      revive:
+        text: 'Revive Dr. Chen with a medkit'
+        if: contains(consumables, "medkit")
+        run: |
+          remove(consumables, "medkit")
+          crew_saved = crew_saved + 1
+          insert(equip, "keycard_blue")
+          insert(keycards, "blue")
+        notify: 'Dr. Chen wakes up and thanks you. She gives you her BLUE SECURITY KEYCARD and tells you about a weapons cache in the Armory on Deck 2.'
+        goto: medical_bay
+      take_keycard:
+        text: 'Take her blue keycard (leave her in stasis)'
+        if: not contains(keycards, "blue")
+        run: |
+          insert(equip, "keycard_blue")
+          insert(keycards, "blue")
+        notify: 'You carefully remove her BLUE SECURITY KEYCARD. She remains in cryo-sleep, safe for now.'
+        goto: medical_bay
+      leave_her:
+        text: 'Return to Medical Bay'
+        notify: 'You decide to leave her be for now.'
+        goto: medical_bay
+
+  crew_quarters:
+    title: 'Crew Quarters'
+    text: |
+      The crew quarters section is damaged. Several doors are sealed shut, but a few rooms are accessible. You hear a banging sound from one of the rooms.
+
+      Oxygen: {oxygen}%
+    run: oxygen = oxygen - 2
+    options:
+      back: ['Return to corridor', main_corridor]
+      investigate_sound:
+        text: 'Investigate the banging'
+        if: not s.investigated
+        run: s.investigated = true
+        goto: hostile_encounter_1
+      search_rooms:
+        text: 'Search accessible quarters'
+        flags: [once]
+        run: |
+          temp.found_gold = d(6) + d(6)
+          insert(consumables, "oxygen_canister")
+        notify: 'You find some credits ({temp.found_gold}) and an OXYGEN CANISTER in the abandoned quarters.'
+
+  hostile_encounter_1:
+    title: 'Combat: Security Drone'
+    text: |
+      The door slides open to reveal a malfunctioning security drone! Its optical sensors flash red as it identifies you as a threat. The station's security protocols must have corrupted during the disaster.
+
+      SECURITY DRONE ⎯⎯⎯ Skill: {s.skill} Stamina: {s.stamina}
+
+      {fight_msg}
+
+      Oxygen: {oxygen}%
+    vars: { stamina: 8, skill: 7, name: 'security drone', luck_used: false }
+    options:
+      <<: *combat
+      victory:
+        text: 'Salvage the drone'
+        if: s.stamina <= 0
+        run: |
+          insert(equip, "power_cell")
+          insert(equip, "keycard_red")
+          insert(keycards, "red")
+        notify: 'The drone sparks and shuts down. You salvage a POWER CELL and find a RED SECURITY KEYCARD in its memory bank!'
+        goto: crew_quarters
+
+  cafeteria:
+    title: 'Cafeteria'
+    text: |
+      The station cafeteria is eerily quiet. Tables are overturned, and food is scattered across the floor. The kitchen area is still accessible.
+
+      Oxygen: {oxygen}%
+    run: oxygen = oxygen - 2
+    options:
+      back: ['Return to corridor', main_corridor]
+      search_kitchen:
+        text: 'Search the kitchen'
+        flags: [once]
+        run: |
+          insert(equip, "ration_pack")
+          insert(equip, "ration_pack")
+        notify: 'You find 2 RATION PACKS in the cold storage.'
+      eat_rations:
+        text: 'Eat a ration pack'
+        if: contains(equip, "ration_pack")
+        run: |
+          remove(equip, "ration_pack")
+          stamina = math.min(stamina_init, stamina + 3)
+        notify: 'You eat the ration pack and restore 3 stamina.'
+      to_engineering:
+        text: 'Take the service elevator to Engineering (Deck 2)'
+        goto: engineering_deck
+
+  engineering_deck:
+    title: 'Engineering - Deck 2'
+    text: |
+      The engineering deck is filled with the smell of burning circuits. Warning lights illuminate damaged consoles and sparking conduits. The reactor room door glows red with a warning: "RADIATION HAZARD - GREEN CLEARANCE REQUIRED".
+
+      Oxygen: {oxygen}%
+
+      Exits: Reactor Room (Green Keycard), Armory (Green Keycard), Life Support, Observation Deck
+    run: oxygen = oxygen - 3
+    options:
+      reactor:
+        text: 'Enter Reactor Room'
+        if: has_keycard("green")
+        goto: reactor_room
+      reactor_locked:
+        text: 'Enter Reactor Room'
+        if: not has_keycard("green")
+        notify: 'The door requires a GREEN SECURITY KEYCARD.'
+      armory:
+        text: 'Enter Armory'
+        if: has_keycard("green")
+        goto: armory
+      armory_locked:
+        text: 'Enter Armory'
+        if: not has_keycard("green")
+        notify: 'The door requires a GREEN SECURITY KEYCARD.'
+      life_support: ['Go to Life Support', life_support]
+      observation: ['Go to Observation Deck', observation_deck]
+      elevator_up: ['Take elevator to Deck 3', main_corridor]
+
+  reactor_room:
+    title: 'Reactor Room'
+    text: |
+      The reactor room is a nightmare. The containment field flickers unstably around the fusion core. Radiation alarms wail, and your emergency kit's dosimeter clicks ominously.
+
+      Oxygen: {oxygen}%
+
+      A control console near the door appears operational.
+    run: |
+      oxygen = oxygen - 5
+      if not reactor_stable then
+        stamina = stamina - 2
+      end
+    options:
+      back: ['Exit quickly', engineering_deck]
+      stabilize:
+        text: 'Attempt to stabilize the reactor'
+        if: not reactor_stable
+        flags: [once]
+        run: |
+          local roll = d(6) + d(6) + skill
+          if roll >= 15 then
+            reactor_stable = true
+            systems_checked = systems_checked + 1
+            temp.msg = "Success! You manage to engage emergency containment. The reactor stabilizes."
+          else
+            stamina = stamina - 4
+            temp.msg = "You fail! The controls overload, shocking you. Lose 4 stamina."
+          end
+        notify: '{temp.msg}'
+        goto: reactor_room
+
+  armory:
+    title: 'Armory'
+    text: |
+      The armory is a treasure trove. Weapon racks line the walls, though many are empty. Emergency supplies are stacked in the corner.
+
+      Oxygen: {oxygen}%
+    run: oxygen = oxygen - 2
+    options:
+      back: ['Exit Armory', engineering_deck]
+      take_weapons:
+        text: 'Take weapons and supplies'
+        flags: [once]
+        run: |
+          insert(equip, "plasma_rifle")
+          insert(equip, "combat_armor")
+          insert(consumables, "medkit")
+          skill = skill + 2
+        notify: 'You equip a PLASMA RIFLE and COMBAT ARMOR. Your Skill increases by 2!'
+      emergency_supplies:
+        text: 'Search emergency supplies'
+        flags: [once]
+        run: |
+          insert(consumables, "oxygen_canister")
+          insert(consumables, "oxygen_canister")
+        notify: 'You find 2 OXYGEN CANISTERS!'
+
+  life_support:
+    title: 'Life Support Systems'
+    text: |
+      The life support control room is in critical condition. Half the systems are offline, and oxygen levels are dropping station-wide.
+
+      Oxygen: {oxygen}%
+
+      A main console still has power.
+    run: oxygen = oxygen - 3
+    options:
+      back: ['Exit to Engineering', engineering_deck]
+      repair_systems:
+        <<: *test_luck
+        text: 'Attempt emergency repairs: 🎲 LUCK'
+        if: not s.repair_attempted
+      repair_success:
+        <<: *luck_pass
+        text: 'Repairs successful!'
+        flags: [once]
+        run: |
+          systems_checked = systems_checked + 1
+          oxygen = math.min(100, oxygen + 20)
+          s.repair_attempted = true
+        notify: 'You restore partial life support! Oxygen levels stabilize and increase by 20%.'
+        goto: life_support
+      repair_fail:
+        <<: *luck_fail
+        text: 'Repairs fail'
+        flags: [once]
+        notify: 'Your repairs fail. A conduit explodes, causing 2 damage!'
+        run: |
+          stamina = stamina - 2
+          s.repair_attempted = true
+        goto: life_support
+
+  observation_deck:
+    title: 'Observation Deck'
+    text: |
+      The observation deck provides a panoramic view of the disaster. Large sections of the station's outer hull are missing, venting atmosphere into space. Neptune looms in the background, beautiful and indifferent.
+
+      Through the viewport, you can see the docking bay on Deck 1 - your only hope of escape.
+
+      Oxygen: {oxygen}%
+    run: oxygen = oxygen - 2
+    options:
+      back: ['Return to Engineering', engineering_deck]
+      assess:
+        text: 'Assess the damage'
+        flags: [once]
+        notify: 'The station is breaking apart. You estimate you have limited time before complete structural failure. You need to reach the docking bay on Deck 1!'
+      to_computer_core:
+        text: 'Take emergency shaft to Computer Core (Deck 1)'
+        goto: computer_core
+
+  computer_core:
+    title: 'Computer Core - Deck 1'
+    text: |
+      The computer core is the brain of Station Omega. Banks of servers hum with emergency power. A central terminal displays critical system statuses - all are red except for the docking bay controls.
+
+      Oxygen: {oxygen}%
+
+      Exits: Access Tunnel (leads to Docking Bay), Emergency Shaft (to Observation Deck)
+    run: oxygen = oxygen - 3
+    options:
+      shaft_down: ['Use emergency shaft down', observation_deck]
+      access_tunnel:
+        text: 'Enter access tunnel to Docking Bay'
+        if: has_keycard("red") and has_keycard("blue")
+        goto: docking_approach
+      tunnel_locked:
+        text: 'Enter access tunnel to Docking Bay'
+        if: not has_keycard("red") or not has_keycard("blue")
+        notify: 'The security door requires both RED and BLUE security keycards.'
+      terminal:
+        text: 'Access main terminal'
+        flags: [once]
+        run: |
+          systems_checked = systems_checked + 1
+        notify: 'You download emergency protocols and authorize docking bay evacuation procedures. This will help at the escape pods!'
+
+  docking_approach:
+    title: 'Docking Bay Access Tunnel'
+    text: |
+      The access tunnel is damaged and partially collapsed. As you navigate through the debris, you hear a mechanical whirring ahead. Something is moving in the darkness.
+
+      Oxygen: {oxygen}%
+    run: oxygen = oxygen - 3
+    options:
+      forward:
+        text: 'Proceed cautiously'
+        goto: final_combat
+      retreat: ['Go back to Computer Core', computer_core]
+
+  final_combat:
+    title: 'Combat: Corrupted Security Bot'
+    text: |
+      A massive security bot emerges from the shadows - a Heavy Defense Unit that has gone completely haywire! Its weapons systems lock onto you.
+
+      HEAVY DEFENSE UNIT ⎯⎯⎯ Skill: {s.skill} Stamina: {s.stamina}
+
+      {fight_msg}
+
+      Oxygen: {oxygen}%
+    vars: { stamina: 14, skill: 8, name: 'defense bot', luck_used: false }
+    options:
+      <<: *combat
+      victory:
+        text: 'Proceed to Docking Bay'
+        if: s.stamina <= 0
+        notify: 'The bot collapses in a shower of sparks. The way to the docking bay is clear!'
+        goto: docking_bay
+
+  docking_bay:
+    title: 'Docking Bay - Final Escape'
+    text: |
+      You emerge into the massive docking bay. Most of the ships are destroyed or have already evacuated, but you spot three options:
+
+      1. A damaged cargo shuttle - looks barely functional
+      2. An emergency escape pod - cramped but reliable
+      3. A maintenance skiff - small but intact
+
+      Station integrity is at critical levels. The entire structure groans and shudders. You need to choose NOW.
+
+      Oxygen: {oxygen}%
+      Systems Stabilized: {systems_checked}/3
+      Crew Saved: {crew_saved}
+    options:
+      shuttle:
+        text: 'Take the cargo shuttle'
+        if: systems_checked >= 2
+        goto: escape_shuttle
+      shuttle_fail:
+        text: 'Take the cargo shuttle'
+        if: systems_checked < 2
+        notify: "Without proper system stabilization, the shuttle fails to launch! The docking clamps won't release."
+      escape_pod:
+        text: 'Use the escape pod'
+        goto: escape_pod
+      skiff:
+        text: 'Take the maintenance skiff'
+        if: contains(equip, "power_cell")
+        goto: escape_skiff
+      skiff_fail:
+        text: 'Take the maintenance skiff'
+        if: not contains(equip, "power_cell")
+        notify: "The skiff has no power cell! It won't start."
+
+  escape_shuttle:
+    title: 'Victory - Shuttle Escape'
+    text: |
+      You strap into the cargo shuttle and fire up the engines. The docking clamps release, and you pilot away from Station Omega just as a massive explosion tears through the reactor section.
+
+      Looking back, you watch the station break apart in a cascade of debris and fire. You transmit a distress beacon and set course for the nearest rescue station.
+
+      {crew_saved > 0 and "Dr. Chen's survival will be crucial for the investigation into what caused this disaster." or "You survived alone, but the loss of the station's crew weighs heavily on you."}
+
+      Final Stats:
+      Stamina: {stamina}/{stamina_init}
+      Oxygen: {oxygen}%
+      Systems Stabilized: {systems_checked}/3
+      Crew Saved: {crew_saved}
+
+      YOU SURVIVED! - SHUTTLE ESCAPE ENDING
+    options:
+      restart:
+        text: 'Play again'
+        goto: restart
+
+  escape_pod:
+    title: 'Victory - Pod Escape'
+    text: |
+      You scramble into the cramped escape pod and slam the emergency launch button. The pod explosively separates from the station, tumbling through space as Station Omega erupts behind you.
+
+      The pod's automated systems stabilize your trajectory and begin broadcasting a distress signal. Through the small viewport, you watch the station's final moments as it breaks apart.
+
+      You survived, but barely. The automated beacon says rescue will arrive in 48 hours.
+
+      Final Stats:
+      Stamina: {stamina}/{stamina_init}
+      Oxygen: {oxygen}%
+      Systems Stabilized: {systems_checked}/3
+      Crew Saved: {crew_saved}
+
+      YOU SURVIVED! - EMERGENCY POD ENDING
+    options:
+      restart:
+        text: 'Play again'
+        goto: restart
+
+  escape_skiff:
+    title: 'Victory - Skiff Escape'
+    text: |
+      You power up the maintenance skiff with the salvaged power cell and carefully pilot it out of the docking bay. The small craft wasn't designed for long-distance travel, but it's fast and maneuverable.
+
+      You thread through the expanding debris field as Station Omega tears itself apart. Your emergency beacon is active, and you plot a course to intercept a nearby shipping lane where you can be rescued.
+
+      Final Stats:
+      Stamina: {stamina}/{stamina_init}
+      Oxygen: {oxygen}%
+      Systems Stabilized: {systems_checked}/3
+      Crew Saved: {crew_saved}
+
+      YOU SURVIVED! - SKIFF ESCAPE ENDING
+    options:
+      restart:
+        text: 'Play again'
+        goto: restart
+
+  dead:
+    title: 'Mission Failed - Deceased'
+    text: |
+      Your injuries were too severe. You collapse in the corridor, unable to continue. Station Omega will be your tomb.
+
+      MISSION FAILED
+    options:
+      restart:
+        text: 'Try again'
+        goto: restart
+
+  suffocated:
+    title: 'Mission Failed - Asphyxiation'
+    text: |
+      Your oxygen supply has run out. You gasp for breath as consciousness fades. The station's life support has failed completely.
+
+      MISSION FAILED
+    options:
+      restart:
+        text: 'Try again'
+        goto: restart
