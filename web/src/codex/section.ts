@@ -5,7 +5,7 @@
 // ===================================================================================
 
 import { Option } from './option'
-import { LuaVM, Story } from './story'
+import { LuaVM, Story, jsToLuaValue } from './story'
 import type { SectionYAML } from './story-types'
 
 export class Section {
@@ -72,14 +72,7 @@ export class Section {
     LuaVM.DoString(`__s_${id} = {}`)
     if (data.vars) {
       const varsCode = Object.entries(data.vars)
-        .map(([key, value]) => {
-          const v = JSON.stringify(value)
-          // Handle arrays as Lua tables
-          if (v.startsWith('[')) {
-            return `__s_${id}.${key} = { ${v.slice(1, -1)} }`
-          }
-          return `__s_${id}.${key} = ${v}`
-        })
+        .map(([key, value]) => `__s_${id}.${key} = ${jsToLuaValue(value)}`)
         .join('\n')
 
       LuaVM.DoString(varsCode)

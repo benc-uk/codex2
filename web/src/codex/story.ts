@@ -12,6 +12,17 @@ import type { StoryYAML } from './story-types'
 
 export const LuaVM = await initLua()
 
+// ===================================================================================
+// Helper function to convert JavaScript values to Lua format
+// ===================================================================================
+export function jsToLuaValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    // Convert array to Lua table
+    return `{ ${value.map((v) => JSON.stringify(v)).join(', ')} }`
+  }
+  return JSON.stringify(value)
+}
+
 export class Story {
   private sections: Map<string, Section>
   public readonly vars: string[] = []
@@ -52,18 +63,20 @@ export class Story {
     for (const varName of this.vars) {
       if (Object.hasOwn(newState, varName)) {
         const value = newState[varName]
-        let luaValue: string
-
-        if (Array.isArray(value)) {
-          // Convert array to Lua table
-          luaValue = `{ ${value.map((v) => JSON.stringify(v)).join(', ')} }`
-        } else {
-          luaValue = JSON.stringify(value)
-        }
-
+        const luaValue = jsToLuaValue(value)
         LuaVM.DoString(`${varName} = ${luaValue}`)
       }
     }
+  }
+
+  setVar(varName: string, value: unknown): void {
+    if (!this.vars.includes(varName)) {
+      console.warn(`Variable set failed: ${varName} is not defined in story`)
+      return
+    }
+
+    const luaValue = jsToLuaValue(value)
+    LuaVM.DoString(`${varName} = ${luaValue}`)
   }
 
   // =================================================================================
@@ -100,14 +113,7 @@ export class Story {
       const varsCode = Object.entries(data.vars)
         .map(([key, value]) => {
           story.vars.push(key)
-          const v = JSON.stringify(value)
-
-          // Handle arrays as Lua tables
-          if (v.startsWith('[')) {
-            return `${key} = { ${v.slice(1, -1)} }`
-          }
-
-          return `${key} = ${v}`
+          return `${key} = ${jsToLuaValue(value)}`
         })
         .join('\n')
 

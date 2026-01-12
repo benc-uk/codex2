@@ -75,6 +75,12 @@ Alpine.data('appState', () => ({
   // Called to navigate to a different section, main state update point
   // =====================================================================
   gotoSection(sectionId: string) {
+    if (sectionId === 'restart') {
+      localStorage.removeItem('codex_state')
+      window.location.href = window.location.pathname
+      return
+    }
+
     const section = story.getSection(sectionId)
     if (!section) {
       console.error('Section not found:', sectionId)

@@ -129,7 +129,7 @@ export class Option {
     // Determine target section, allowing Lua to override via goto_section global
     let target = this.target
     const gotoSection = LuaVM.GetGlobal('goto_section')
-    if (gotoSection) {
+    if (gotoSection && target !== 'restart') {
       target = gotoSection as string
     }
 
